@@ -853,7 +853,33 @@ func startWebServer(port string, counter *uint64, matches *uint64) {
 	}()
 }
 
+func loadEnvFile(path string) {
+	file, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			k := strings.TrimSpace(parts[0])
+			v := strings.TrimSpace(parts[1])
+			if os.Getenv(k) == "" {
+				os.Setenv(k, v)
+			}
+		}
+	}
+}
+
 func main() {
+	loadEnvFile(".env")
+
 	// Guard Cloud Memory: keep Go GC tightly bound under 128MB (Render Free Tier limit is 512MB)
 	debug.SetMemoryLimit(128 * 1024 * 1024)
 	debug.SetGCPercent(20)
