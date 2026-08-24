@@ -1,6 +1,6 @@
-# Bitcoin Key Scanner (Railway 1.9 vCPU Optimized)
+# Bitcoin Key Scanner (Render Free Tier & Railway Optimized)
 
-High-performance, **zero-allocation** Bitcoin Private Key Scanner & Matcher accelerated with **Montgomery Batch Elliptic Curve Math**. Engineered specifically to run 24/7 on **Railway.com** within strict resource boundaries: **Max 1.9 vCPU** and **<25MB RAM**, while achieving blistering scanning speeds of **1.4M+ keys/sec**.
+High-performance, **zero-allocation** Bitcoin Private Key Scanner & Matcher accelerated with **Montgomery Batch Elliptic Curve Math**. Engineered specifically to run 24/7 on **Render (Free Tier: 0.1 CPU, 512MB RAM)** and **Railway.com (<1.9 vCPU)** while consuming **<20MB RAM** and **0 B/op** heap allocations.
 
 ---
 
@@ -9,14 +9,14 @@ High-performance, **zero-allocation** Bitcoin Private Key Scanner & Matcher acce
 - **Montgomery Batch Inversion (256 Points/Batch)**:
   - Replaces slow scalar multiplication ($k \cdot G$, ~13,000 ns) with Jacobian consecutive point additions ($P_{j+1} = P_j + G$, ~150 ns) and batch modular inversion of all $Z$-coordinates with a single inversion.
   - Achieves **~700,000+ keys/sec per core** with **0 heap allocations (0 B/op)**.
-- **Strict 1.9 vCPU Resource Management**:
-  - Automatically configured to `GOMAXPROCS=2` and `WORKERS=2` to ensure container CPU usage remains strictly $\le 1.9$ vCPU, preventing Railway container throttling, noisy-neighbor limits, or credit exhaustion.
-- **Ultra-Low Memory (<25MB RAM)**:
-  - Target addresses are loaded into a compact zero-value hash map (`map[[20]byte]struct{}`), eliminating string pointer overhead.
-  - Go memory ceiling enforced via `debug.SetMemoryLimit(128MB)` and `debug.SetGCPercent(20)`.
-  - Deterministic on-the-fly Base58Check address reconstruction when matches are found.
+- **Render Free Tier Optimized (0.1 CPU / 512MB RAM)**:
+  - Defaults to `WORKERS=1` and `GOMAXPROCS=1` for single-thread efficiency on throttled 0.1 CPU environments.
+  - Cooperative CPU yielding (`runtime.Gosched()`) guarantees `/health` and web dashboard remain immediately responsive.
+- **Ultra-Low Memory (<20MB RAM)**:
+  - Target addresses are loaded into a compact zero-value hash map (`map[[20]byte]struct{}`), eliminating string pointer overhead (~1.3MB for 33,000+ addresses).
+  - Go memory ceiling strictly enforced via `debug.SetMemoryLimit(128MB)` and `debug.SetGCPercent(20)` (well below Render's 512MB limit).
 - **Real-Time Live Web Dashboard**:
-  - Dark-mode web interface at `http://your-app.up.railway.app` displaying live keys/sec (M/s), total scanned (M/B keys), RAM usage, active vCPU limit, Telegram alert status, and found matches.
+  - Dark-mode web interface displaying live keys/sec, total scanned keys, RAM usage, active vCPU limit, Telegram alert status, and found matches.
 - **Instant Telegram Notifications**:
   - Automated instant alerts with Target Address, Hex Private Key, Decimal, and WIF format.
 - **Flexible Modes**:
@@ -26,53 +26,34 @@ High-performance, **zero-allocation** Bitcoin Private Key Scanner & Matcher acce
 
 ---
 
-## 📊 Performance Benchmarks
+## 🛠️ How to Deploy on Render.com (Free Tier)
 
-| Metric | Previous Engine | Montgomery Engine (This Update) |
-|---|---|---|
-| **CPU Limit** | Unconstrained (Host cores) | **Max 1.9 vCPU (2 Workers)** |
-| **RAM / VRAM Usage** | ~80MB - 300MB | **< 20MB** |
-| **Heap Allocations per Key** | 184 B/op (4 allocs) | **0 B/op (0 allocs)** |
-| **Per-Core Speed** | ~75,000 keys/sec | **~700,000+ keys/sec** (9.4x faster) |
-| **Total Speed (2 Cores / 1.9 vCPU)** | ~150,000 keys/sec | **~1,400,000 - 1,600,000 keys/sec** |
+1. Log into **[dashboard.render.com](https://dashboard.render.com)**.
+2. Click **New +** -> **Web Service**.
+3. Connect your GitHub repository (`batforrandar`).
+4. Select **Docker** environment and **Free** tier.
+5. In **Environment Variables**:
+   - `PORT`: `8080`
+   - `WORKERS`: `1` (Optimal for 0.1 CPU Free Tier)
+   - `MAX_VCPU`: `0.1`
+   - `PUZZLE_BITS`: `66` (Optional)
+   - `TELEGRAM_BOT_TOKEN`: `<your_bot_token>` (Optional)
+   - `TELEGRAM_CHAT_ID`: `<your_chat_id>` (Optional)
+6. Under **Advanced Settings**, set **Health Check Path** to `/health`.
+7. Click **Create Web Service**.
 
 ---
 
 ## 🛠️ How to Deploy on Railway.com
 
-### 1. Deploy via GitHub Repository
-
 1. Push this project to your GitHub repository.
-2. Go to [Railway.com](https://railway.com) and log in.
-3. Click **"+ New Project"** -> **"Deploy from GitHub repo"** -> Select your repository.
-4. Railway will automatically build and start the Docker container.
-
-### 2. Environment Variables Configuration
-
-In Railway Dashboard -> Go to your project -> **"Variables"** tab:
-
-| Variable | Description | Default / Example |
-|---|---|---|
-| `MAX_VCPU` | Maximum vCPU quota limit | `1.9` |
-| `WORKERS` | Number of worker goroutines | `2` (Optimal for 1.9 vCPU) |
-| `PUZZLE_BITS` | Puzzle bit range to scan | `66` (Leave blank for full 256-bit) |
-| `KEY_RANGE_MIN` | Custom range start (Hex) | `0x20000000000000000` |
-| `KEY_RANGE_MAX` | Custom range end (Hex) | `0x3fffffffffffffffff` |
-| `TARGET_ADDRESSES` | Target Bitcoin addresses (comma-separated) | `13zb1hQbWVsc2S7ZTGarKFbe9M8UbUm2Yea` |
-| `ADDRESSES_FILE` | Path to address list file | `addresses.txt` |
-| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token for alerts | `8112140789:AAFs2...` |
-| `TELEGRAM_CHAT_ID` | Telegram Chat ID for alerts | `769770980` |
-| `PORT` | Web Dashboard HTTP port | `8080` (Railway sets this automatically) |
-
-### 3. Generate Public URL
-
-- In Railway Dashboard -> **"Settings"** -> **"Networking"** -> Click **"Generate Domain"**.
-- Open the URL in your browser to view your live stats dashboard!
+2. Go to [Railway.com](https://railway.com) -> Click **"+ New Project"** -> **"Deploy from GitHub repo"**.
+3. In **Variables**: Set `MAX_VCPU=1.9`, `WORKERS=2`.
 
 ---
 
 ## 🌐 Endpoints
 
 - `/` : Live Dark-Mode Web Dashboard.
-- `/health` : Railway JSON Healthcheck (`{"status":"healthy","uptime":...}`).
+- `/health` : JSON Healthcheck (`{"status":"healthy","uptime":...}`).
 - `/stats` : Live metrics JSON API.

@@ -549,6 +549,7 @@ func runScannerWorker(ctx context.Context, id int, targets map[[20]byte]struct{}
 			if localCount >= 20000 {
 				atomic.AddUint64(counter, localCount)
 				localCount = 0
+				runtime.Gosched() // Cooperative yield for HTTP server on 0.1 CPU / throttled environments
 			}
 		}
 	}
@@ -559,7 +560,7 @@ const dashboardHTML = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BTC Random Key Scanner - Railway 1.9 vCPU Node</title>
+    <title>BTC Random Key Scanner - Cloud Node (Render / Railway)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -668,7 +669,7 @@ const dashboardHTML = `<!DOCTYPE html>
                 <div class="logo">₿</div>
                 <div>
                     <div class="title">Bitcoin Key Scanner (Montgomery Batch)</div>
-                    <div style="font-size: 13px; color: var(--text-secondary);">Railway Max 1.9 vCPU Capped | Zero-Allocation Engine</div>
+                    <div style="font-size: 13px; color: var(--text-secondary);">Cloud Node (Render / Railway) | Zero-Allocation Engine</div>
                 </div>
             </div>
             <div class="badge">
@@ -695,16 +696,16 @@ const dashboardHTML = `<!DOCTYPE html>
             <div class="card">
                 <div class="card-label">RAM / Memory</div>
                 <div class="card-value cyan-text" id="ram-usage">0 MB</div>
-                <div class="card-sub">Railway Cap: 512 MB</div>
+                <div class="card-sub">Tier Limit: 512 MB</div>
             </div>
         </div>
 
         <div class="section">
-            <div class="section-title">Railway Node Configuration & Performance</div>
+            <div class="section-title">Cloud Node Configuration & Performance</div>
             <table class="table">
                 <tr><th>Scan Engine</th><td>Montgomery Batch EC Addition (Batch 256, 0-Alloc)</td></tr>
-                <tr><th>vCPU Limit</th><td class="cyan-text" id="vcpu-limit">Max 1.9 vCPU (2 Workers)</td></tr>
-                <tr><th>Active Workers</th><td id="worker-count">2 Goroutines</td></tr>
+                <tr><th>vCPU Limit</th><td class="cyan-text" id="vcpu-limit">Max 0.1 - 1.9 vCPU</td></tr>
+                <tr><th>Active Workers</th><td id="worker-count">1 Worker</td></tr>
                 <tr><th>Scan Mode</th><td id="scan-mode">Accelerated Random</td></tr>
                 <tr><th>Uptime</th><td id="uptime">0s</td></tr>
                 <tr><th>Telegram Alerts</th><td id="tg-status">Checking...</td></tr>
@@ -853,12 +854,19 @@ func startWebServer(port string, counter *uint64, matches *uint64) {
 }
 
 func main() {
-	// Guard Railway Memory: keep Go GC tightly bound under 128MB (Railway limit is 512MB)
+	// Guard Cloud Memory: keep Go GC tightly bound under 128MB (Render Free Tier limit is 512MB)
 	debug.SetMemoryLimit(128 * 1024 * 1024)
 	debug.SetGCPercent(20)
 
-	// Strictly limit vCPU usage to <= 1.9 vCPU on Railway (2 OS threads max)
-	maxVCPU := 1.9
+	isRender := os.Getenv("RENDER") != "" || os.Getenv("RENDER_SERVICE_ID") != ""
+	defaultWorkers := 1
+	defaultVCPU := 0.1
+	if !isRender && os.Getenv("RAILWAY_ENVIRONMENT") != "" {
+		defaultWorkers = 2
+		defaultVCPU = 1.9
+	}
+
+	maxVCPU := defaultVCPU
 	if vcpuEnv := os.Getenv("MAX_VCPU"); vcpuEnv != "" {
 		if v, err := strconv.ParseFloat(vcpuEnv, 64); err == nil && v > 0 {
 			maxVCPU = v
@@ -866,8 +874,7 @@ func main() {
 	}
 	stats.MaxVCPU = maxVCPU
 
-	// Default to 2 workers to fit strictly within 1.9 vCPU
-	workerCount := 2
+	workerCount := defaultWorkers
 	if wEnv := os.Getenv("WORKERS"); wEnv != "" {
 		if w, err := strconv.Atoi(wEnv); err == nil && w > 0 {
 			workerCount = w
@@ -876,8 +883,15 @@ func main() {
 	runtime.GOMAXPROCS(workerCount)
 	stats.Workers = workerCount
 
+	platform := "CLOUD NODE (Render / Railway)"
+	if isRender {
+		platform = "RENDER FREE TIER (0.1 CPU / 512MB RAM OPTIMIZED)"
+	} else if os.Getenv("RAILWAY_ENVIRONMENT") != "" {
+		platform = "RAILWAY (1.9 vCPU OPTIMIZED)"
+	}
+
 	fmt.Println("=======================================================")
-	fmt.Println("🚀 BITCOIN KEY SCANNER - RAILWAY 1.9 vCPU OPTIMIZED")
+	fmt.Printf("🚀 BITCOIN KEY SCANNER - %s\n", platform)
 	fmt.Printf("⚡ Montgomery Batch Engine (Batch 256) | Workers: %d (Max %.1f vCPU)\n", workerCount, maxVCPU)
 	fmt.Println("=======================================================")
 
