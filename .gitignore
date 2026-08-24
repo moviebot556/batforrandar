@@ -1,4 +1,4 @@
-﻿# Executables and binaries
+# Executables and binaries
 *.exe
 *.exe~
 *.dll
@@ -17,3 +17,7 @@ last_position.txt
 .gemini/
 .DS_Store
 Thumbs.db
+
+# Environment variables
+.env
+!.env.example
