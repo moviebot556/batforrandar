@@ -201,6 +201,11 @@ func parseRangeConfig() RangeConfig {
 	rangeMaxStr := os.Getenv("KEY_RANGE_MAX")
 	puzzleBitsStr := os.Getenv("PUZZLE_BITS")
 
+	// Default to Puzzle #66 if no specific mode is given
+	if puzzleBitsStr == "" && rangeMinStr == "" {
+		puzzleBitsStr = "66"
+	}
+
 	if puzzleBitsStr != "" {
 		bits, err := strconv.Atoi(puzzleBitsStr)
 		if err == nil && bits >= 1 && bits <= 256 {
@@ -885,11 +890,11 @@ func main() {
 	debug.SetGCPercent(20)
 
 	isRender := os.Getenv("RENDER") != "" || os.Getenv("RENDER_SERVICE_ID") != ""
-	defaultWorkers := 1
-	defaultVCPU := 0.1
-	if !isRender && os.Getenv("RAILWAY_ENVIRONMENT") != "" {
-		defaultWorkers = 2
-		defaultVCPU = 1.9
+	defaultWorkers := 2
+	defaultVCPU := 1.9
+	if isRender {
+		defaultWorkers = 1
+		defaultVCPU = 0.1
 	}
 
 	maxVCPU := defaultVCPU
